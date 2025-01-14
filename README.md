@@ -5,12 +5,10 @@
 <img src="https://ai-cursor.com/wp-content/uploads/2024/09/logo-cursor-ai-png.webp" alt="Cursor Logo" width="120"/>
 
 ```
-   ██████╗██╗   ██╗██████╗ ███████╗ ██████╗ ██████╗ 
-  ██╔════╝██║   ██║██╔══██╗██╔════╝██╔═══██╗██╔══██╗
-  ██║     ██║   ██║██████╔╝███████╗██║   ██║██████╔╝
-  ██║     ██║   ██║██╔══██╗╚════██║██║   ██║██╔══██╗
-  ╚██████╗╚██████╔╝██║  ██║███████║╚██████╔╝██║  ██║
-   ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
+Too many free trial accounts used on this machine.
+Please upgrade to pro. We have this limit in place
+to prevent abuse. Please let us know if you believe
+this is a mistake.
 ```
 
 A simple tool to reset Cursor Editor's device identifiers.
