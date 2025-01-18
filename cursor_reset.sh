@@ -1,51 +1,83 @@
 #!/bin/bash
 
-# Cyberpunk ASCII Logo with "CURSOR"
-echo -e "\e[35m"
-cat << "EOF"
+# Define the path to the storage.json file
+STORAGE_PATH="$HOME/.config/Cursor/User/globalStorage/storage.json"
+
+# Logo
+LOGO="
    ██████╗██╗   ██╗██████╗ ███████╗ ██████╗ ██████╗ 
   ██╔════╝██║   ██║██╔══██╗██╔════╝██╔═══██╗██╔══██╗
   ██║     ██║   ██║██████╔╝███████╗██║   ██║██████╔╝
   ██║     ██║   ██║██╔══██╗╚════██║██║   ██║██╔══██╗
   ╚██████╗╚██████╔╝██║  ██║███████║╚██████╔╝██║  ██║
    ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
-EOF
-echo -e "\e[0m"
+"
 
-# Define the path to the storage.json file
-CONFIG_PATH="$HOME/.config/Cursor/User/globalStorage/storage.json"
+# Colors
+RED="\033[1;31m"
+GREEN="\033[1;32m"
+YELLOW="\033[1;33m"
+BLUE="\033[1;34m"
+RESET="\033[0m"
 
-# Function to generate a random UUID
-generate_uuid() {
-    uuidgen | tr '[:upper:]' '[:lower:]'
-}
+# Print the logo
+echo -e "${BLUE}$LOGO${RESET}"
+echo -e "${YELLOW}=== Cursor Telemetry ID Updater ===${RESET}"
+echo ""
 
-# Function to display a spinner
-spinner() {
-    local pid=$1
-    local delay=0.1
-    local spinstr='|/-\'
-    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
-        local temp=${spinstr#?}
-        printf " [%c]  " "$spinstr"
-        local spinstr=$temp${spinstr%"$temp"}
-        sleep $delay
-        printf "\b\b\b\b\b\b"
-    done
-    printf "    \b\b\b\b"
-}
+# Check if the file exists
+if [[ ! -f "$STORAGE_PATH" ]]; then
+  echo -e "${RED}Error: Cursor's storage.json file not found at $STORAGE_PATH!${RESET}"
+  exit 1
+fi
 
-# Modify the storage.json file
-echo -e "\e[36mModifying configuration file...\e[0m"
-{
-    sleep 1 &
-    spinner $!
-    jq --arg machineId "$(generate_uuid)" --arg macMachineId "$(generate_uuid)" --arg devDeviceId "$(generate_uuid)" \
-    '.telemetry.machineId = $machineId | .telemetry.macMachineId = $macMachineId | .telemetry.devDeviceId = $devDeviceId' \
-    "$CONFIG_PATH" > temp.json && mv temp.json "$CONFIG_PATH"
-} &> /dev/null
+# Load the JSON file
+data=$(cat "$STORAGE_PATH")
 
-echo -e "\e[32mConfiguration file updated successfully!\e[0m"
-echo -e "\e[33mPlease restart Cursor for changes to take effect.\e[0m"
-echo -e "\e[33mPress Enter to exit...\e[0m"
-read -s
+# Extract current values
+machineId=$(echo "$data" | jq -r '.["telemetry.machineId"]')
+macMachineId=$(echo "$data" | jq -r '.["telemetry.macMachineId"]')
+devDeviceId=$(echo "$data" | jq -r '.["telemetry.devDeviceId"]')
+
+# Display current values
+echo -e "${YELLOW}Current Values:${RESET}"
+echo -e "${BLUE}telemetry.machineId: ${GREEN}$machineId${RESET}"
+echo -e "${BLUE}telemetry.macMachineId: ${GREEN}$macMachineId${RESET}"
+echo -e "${BLUE}telemetry.devDeviceId: ${GREEN}$devDeviceId${RESET}"
+echo ""
+
+# Add a delay for better UX
+sleep 1
+
+# Generate new UUIDs
+new_machineId=$(uuidgen)
+new_macMachineId=$(uuidgen)
+new_devDeviceId=$(uuidgen)
+
+# Display new values
+echo -e "${YELLOW}New Values:${RESET}"
+echo -e "${BLUE}telemetry.machineId: ${GREEN}$new_machineId${RESET}"
+echo -e "${BLUE}telemetry.macMachineId: ${GREEN}$new_macMachineId${RESET}"
+echo -e "${BLUE}telemetry.devDeviceId: ${GREEN}$new_devDeviceId${RESET}"
+echo ""
+
+# Add a delay for better UX
+sleep 1
+
+# Update the JSON file
+updated_data=$(echo "$data" | jq \
+  --arg new_machineId "$new_machineId" \
+  --arg new_macMachineId "$new_macMachineId" \
+  --arg new_devDeviceId "$new_devDeviceId" \
+  '.["telemetry.machineId"] = $new_machineId |
+   .["telemetry.macMachineId"] = $new_macMachineId |
+   .["telemetry.devDeviceId"] = $new_devDeviceId')
+
+# Save the updated JSON back to the file
+echo "$updated_data" | jq . > "$STORAGE_PATH"
+
+echo -e "${GREEN}✅ storage.json updated successfully!${RESET}"
+echo ""
+
+# Prompt the user to restart Cursor
+echo -e "${YELLOW}Please restart Cursor for the changes to take effect.${RESET}"

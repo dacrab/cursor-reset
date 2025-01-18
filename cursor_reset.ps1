@@ -1,5 +1,8 @@
-# Cyberpunk ASCII Logo with "CURSOR"
-Write-Host -ForegroundColor Magenta @"
+# Define the path to the storage.json file
+$storagePath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+
+# Logo
+$LOGO = @"
    ██████╗██╗   ██╗██████╗ ███████╗ ██████╗ ██████╗ 
   ██╔════╝██║   ██║██╔══██╗██╔════╝██╔═══██╗██╔══██╗
   ██║     ██║   ██║██████╔╝███████╗██║   ██║██████╔╝
@@ -8,40 +11,60 @@ Write-Host -ForegroundColor Magenta @"
    ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
 "@
 
-# Define the path to the storage.json file
-$configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+# Print the logo
+Write-Host $LOGO -ForegroundColor Blue
+Write-Host "=== Cursor Telemetry ID Updater ===" -ForegroundColor Yellow
+Write-Host ""
 
-# Function to generate a random GUID
-function Generate-Guid {
-    return [guid]::NewGuid().ToString().ToLower()
+# Check if the file exists
+if (-Not (Test-Path $storagePath)) {
+  Write-Host "Error: Cursor's storage.json file not found at $storagePath!" -ForegroundColor Red
+  exit
 }
 
-# Function to display a spinner
-function Show-Spinner {
-    $spinner = @('|', '/', '-', '\')
-    $i = 0
-    while ($true) {
-        Write-Host -NoNewline "`r$($spinner[$i % 4])"
-        Start-Sleep -Milliseconds 100
-        $i++
-    }
-}
+# Load the JSON file
+$data = Get-Content -Path $storagePath | ConvertFrom-Json
 
-# Modify the storage.json file
-Write-Host -ForegroundColor Cyan "Modifying configuration file..."
-$spinnerJob = Start-Job -ScriptBlock { Show-Spinner }
+# Extract current values
+$machineId = $data.telemetry.machineId
+$macMachineId = $data.telemetry.macMachineId
+$devDeviceId = $data.telemetry.devDeviceId
+
+# Display current values
+Write-Host "Current Values:" -ForegroundColor Yellow
+Write-Host "telemetry.machineId: $machineId" -ForegroundColor Green
+Write-Host "telemetry.macMachineId: $macMachineId" -ForegroundColor Green
+Write-Host "telemetry.devDeviceId: $devDeviceId" -ForegroundColor Green
+Write-Host ""
+
+# Add a delay for better UX
 Start-Sleep -Seconds 1
 
-$json = Get-Content -Path $configPath | ConvertFrom-Json
-$json.telemetry.machineId = Generate-Guid
-$json.telemetry.macMachineId = Generate-Guid
-$json.telemetry.devDeviceId = Generate-Guid
-$json | ConvertTo-Json -Depth 10 | Set-Content -Path $configPath
+# Generate new GUIDs (UUIDs)
+$new_machineId = [guid]::NewGuid().ToString()
+$new_macMachineId = [guid]::NewGuid().ToString()
+$new_devDeviceId = [guid]::NewGuid().ToString()
 
-Stop-Job -Job $spinnerJob
-Remove-Job -Job $spinnerJob
+# Display new values
+Write-Host "New Values:" -ForegroundColor Yellow
+Write-Host "telemetry.machineId: $new_machineId" -ForegroundColor Green
+Write-Host "telemetry.macMachineId: $new_macMachineId" -ForegroundColor Green
+Write-Host "telemetry.devDeviceId: $new_devDeviceId" -ForegroundColor Green
+Write-Host ""
 
-Write-Host -ForegroundColor Green "Configuration file updated successfully!"
-Write-Host -ForegroundColor Yellow "Please restart Cursor for changes to take effect."
-Write-Host "`nPress Enter to exit..." -NoNewline
-Read-Host
+# Add a delay for better UX
+Start-Sleep -Seconds 1
+
+# Update the JSON data
+$data.telemetry.machineId = $new_machineId
+$data.telemetry.macMachineId = $new_macMachineId
+$data.telemetry.devDeviceId = $new_devDeviceId
+
+# Save the updated JSON back to the file
+$data | ConvertTo-Json -Depth 10 | Set-Content -Path $storagePath
+
+Write-Host "✅ storage.json updated successfully!" -ForegroundColor Green
+Write-Host ""
+
+# Prompt the user to restart Cursor
+Write-Host "Please restart Cursor for the changes to take effect." -ForegroundColor Yellow
