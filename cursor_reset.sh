@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the paths
-STORAGE_PATH="$HOME/.config/Cursor/User/globalStorage/storage.json"
+STORAGE_PATH="$HOME/'/Users/root/Library/Application Support/Cursor/User/globalStorage/storage.json'"
 MACHINE_ID_PATH="$HOME/.config/Cursor/machineid"
 
 # Logo
