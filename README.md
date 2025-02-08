@@ -19,8 +19,9 @@ A simple tool to reset Cursor Editor's device identifiers.
 
 ### Linux/macOS
 ```bash
-curl -s https://raw.githubusercontent.com/dacrab/cursor-reset/main/cursor_reset.sh | bash
+curl -s https://raw.githubusercontent.com/dacrab/cursor-reset/main/cursor_reset.sh --appimage /path/to/appimage | bash
 ```
+Change the path to the appimage you want to use.
 
 ### Windows
 ```powershell
