@@ -1,8 +1,10 @@
-# Define the paths
+# Define paths
 $storagePath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
 $mainJsPath = "${env:LOCALAPPDATA}\Programs\Cursor\resources\app\out\main.js"
+$backupDir = Join-Path $HOME "CursorID_Backups"
+$registryPath = "HKLM:\SOFTWARE\Microsoft\Cryptography"
 
-# Logo
+# Logo display
 $LOGO = @"
    ██████╗██╗   ██╗██████╗ ███████╗ ██████╗ ██████╗ 
   ██╔════╝██║   ██║██╔══██╗██╔════╝██╔═══██╗██╔══██╗
@@ -12,95 +14,152 @@ $LOGO = @"
    ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
 "@
 
-# Print the logo
-Write-Host $LOGO -ForegroundColor Blue
-Write-Host "=== Cursor Telemetry ID Updater ===" -ForegroundColor Yellow
+Write-Host $LOGO -ForegroundColor Cyan
+Write-Host "=== Cursor Identity Reset Tool ===" -ForegroundColor Yellow
 Write-Host ""
 
-# Function to generate UUID v4
-function New-UUIDv4 {
-    $uuid = [guid]::NewGuid().ToString()
-    # Ensure version is 4
-    $uuid = $uuid.Substring(0,14) + "4" + $uuid.Substring(15)
-    # Ensure variant is correct (8, 9, a, or b)
-    $variants = @("8","9","a","b")
-    $randomVariant = $variants | Get-Random
-    $uuid = $uuid.Substring(0,19) + $randomVariant + $uuid.Substring(20)
-    return $uuid
-}
-
-# Check if the files exist
-if (-Not (Test-Path $storagePath)) {
-    Write-Host "Error: Cursor's storage.json file not found at $storagePath!" -ForegroundColor Red
+# Check admin privileges
+if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Host "Error: This script requires administrator privileges!" -ForegroundColor Red
     exit
 }
 
-if (-Not (Test-Path $mainJsPath)) {
-    Write-Host "Error: Cursor's main.js file not found at $mainJsPath!" -ForegroundColor Red
-    exit
+# Check if Cursor is running
+$cursorProcesses = Get-Process "cursor" -ErrorAction SilentlyContinue
+if ($cursorProcesses) {
+    Write-Host "Cursor is running. Please close Cursor to continue..." -ForegroundColor Yellow
+    Write-Host "Waiting for Cursor to exit..."
+    
+    while ($true) {
+        $cursorProcesses = Get-Process "cursor" -ErrorAction SilentlyContinue
+        if (-not $cursorProcesses) {
+            Write-Host "Cursor closed. Continuing..." -ForegroundColor Green
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
 }
 
-# Load the JSON file
-$data = Get-Content -Path $storagePath | ConvertFrom-Json
+# Backup system identifiers
+function Backup-SystemIds {
+    param(
+        [string]$backupDir
+    )
+    
+    if (-not (Test-Path $backupDir)) {
+        New-Item -ItemType Directory -Path $backupDir | Out-Null
+    }
 
-# Extract current values
-$machineId = $data.'telemetry.machineId'
-$macMachineId = $data.'telemetry.macMachineId'
-$devDeviceId = $data.'telemetry.devDeviceId'
-$sqmId = $data.'telemetry.sqmId'
+    # Backup MachineGuid
+    try {
+        $machineGuid = (Get-ItemProperty -Path $registryPath).MachineGuid
+        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        $backupFile = Join-Path $backupDir "MachineGuid_$timestamp.txt"
+        $machineGuid | Out-File $backupFile
+        Write-Host "Backup created: $backupFile" -ForegroundColor Blue
+    }
+    catch {
+        Write-Host "Error backing up MachineGuid: $_" -ForegroundColor Red
+    }
+}
 
-# Display current values
-Write-Host "Current Values:" -ForegroundColor Yellow
-Write-Host "telemetry.machineId: $machineId" -ForegroundColor Green
-Write-Host "telemetry.macMachineId: $macMachineId" -ForegroundColor Green
-Write-Host "telemetry.devDeviceId: $devDeviceId" -ForegroundColor Green
-Write-Host "telemetry.sqmId: $sqmId" -ForegroundColor Green
-Write-Host ""
+# ID Generation Functions
+function New-MacMachineId {
+    $template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+    $result = ""
+    $random = [Random]::new()
+    
+    foreach ($char in $template.ToCharArray()) {
+        switch ($char) {
+            'x' { $result += [Convert]::ToString($random.Next(16), 16) }
+            'y' { $result += [Convert]::ToString(($random.Next(4) + 8), 16) }
+            default { $result += $char }
+        }
+    }
+    return $result
+}
 
-# Add a delay for better UX
-Start-Sleep -Seconds 1
+function New-RandomId {
+    $uuid1 = [guid]::NewGuid().ToString("N")
+    $uuid2 = [guid]::NewGuid().ToString("N")
+    return $uuid1 + $uuid2
+}
 
-# Generate new UUIDs
-$new_machineId = New-UUIDv4
-$new_macMachineId = New-UUIDv4
-$new_devDeviceId = New-UUIDv4
-$new_sqmId = New-UUIDv4
-$new_main_machine_id = New-UUIDv4
+# Main execution
+try {
+    # Create backups
+    Backup-SystemIds -backupDir $backupDir
 
-# Display new values
-Write-Host "New Values:" -ForegroundColor Yellow
-Write-Host "telemetry.machineId: $new_machineId" -ForegroundColor Green
-Write-Host "telemetry.macMachineId: $new_macMachineId" -ForegroundColor Green
-Write-Host "telemetry.devDeviceId: $new_devDeviceId" -ForegroundColor Green
-Write-Host "telemetry.sqmId: $new_sqmId" -ForegroundColor Green
-Write-Host "main.js machineId: $new_main_machine_id" -ForegroundColor Green
-Write-Host ""
+    # Generate new IDs
+    $newMachineId = New-RandomId
+    $newMacMachineId = New-MacMachineId
+    $newDevDeviceId = [guid]::NewGuid().ToString()
+    $newSqmId = "{$([guid]::NewGuid().ToString().ToUpper())}"
+    $newMainMachineId = [guid]::NewGuid().ToString("N").Substring(0,32)
 
-# Add a delay for better UX
-Start-Sleep -Seconds 1
+    # Update storage.json
+    if (Test-Path $storagePath) {
+        $originalAttributes = (Get-Item $storagePath).Attributes
+        Set-ItemProperty $storagePath -Name Attributes -Value Normal
 
-# Update the JSON data
-$data.'telemetry.machineId' = $new_machineId
-$data.'telemetry.macMachineId' = $new_macMachineId
-$data.'telemetry.devDeviceId' = $new_devDeviceId
-$data.'telemetry.sqmId' = $new_sqmId
+        $jsonContent = Get-Content $storagePath -Raw | ConvertFrom-Json
+        
+        # Update telemetry properties
+        $properties = @{
+            "telemetry.machineId" = $newMachineId
+            "telemetry.macMachineId" = $newMacMachineId
+            "telemetry.devDeviceId" = $newDevDeviceId
+            "telemetry.sqmId" = $newSqmId
+        }
 
-# Save the updated JSON back to the file
-$data | ConvertTo-Json -Depth 10 | Set-Content -Path $storagePath
+        foreach ($prop in $properties.Keys) {
+            if ($jsonContent.PSObject.Properties.Name -contains $prop) {
+                $jsonContent.$prop = $properties[$prop]
+            }
+            else {
+                $jsonContent | Add-Member -NotePropertyName $prop -NotePropertyValue $properties[$prop]
+            }
+        }
 
-# Update main.js
-$mainJsContent = Get-Content -Path $mainJsPath -Raw
-$mainJsContent = $mainJsContent -replace '(?<=getMachineId\(\)\s*{\s*return\s*[''"])([^''"]+)(?=[''"])', $new_main_machine_id
+        # Save with proper encoding
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText(
+            $storagePath,
+            ($jsonContent | ConvertTo-Json -Depth 10),
+            $utf8NoBom
+        )
+        Set-ItemProperty $storagePath -Name Attributes -Value $originalAttributes
+    }
 
-# Create a backup of main.js
-Copy-Item -Path $mainJsPath -Destination "${mainJsPath}.backup" -Force
+    # Update main.js
+    if (Test-Path $mainJsPath) {
+        Copy-Item $mainJsPath "$mainJsPath.backup" -Force
+        $jsContent = Get-Content $mainJsPath -Raw
+        $jsContent = $jsContent -replace '(?<=getMachineId\(\)\s*{\s*return\s*[''"])([^''"]+)(?=[''"])', $newMainMachineId
+        $jsContent | Set-Content $mainJsPath -Force
+    }
 
-# Save the modified main.js
-$mainJsContent | Set-Content -Path $mainJsPath -Force
+    # Update registry
+    Set-ItemProperty -Path $registryPath -Name "MachineGuid" -Value ([guid]::NewGuid().ToString()) -Force
 
-Write-Host "✅ Files updated successfully!" -ForegroundColor Green
-Write-Host "📝 Backup of main.js created at ${mainJsPath}.backup" -ForegroundColor Blue
-Write-Host ""
-
-# Prompt the user to restart Cursor
-Write-Host "Please restart Cursor for the changes to take effect." -ForegroundColor Yellow
+    # Display results
+    Write-Host "`nSuccessfully updated identifiers:" -ForegroundColor Green
+    Write-Host "• MachineGuid (Registry): " -NoNewline -ForegroundColor Cyan
+    Write-Host (Get-ItemProperty $registryPath).MachineGuid
+    
+    Write-Host "• telemetry.machineId: " -NoNewline -ForegroundColor Cyan
+    Write-Host $newMachineId
+    
+    Write-Host "• telemetry.macMachineId: " -NoNewline -ForegroundColor Cyan
+    Write-Host $newMacMachineId
+    
+    Write-Host "• main.js machineId: " -NoNewline -ForegroundColor Cyan
+    Write-Host $newMainMachineId
+    
+    Write-Host "`nBackups stored in: $backupDir" -ForegroundColor Blue
+    Write-Host "Please restart Cursor to apply changes" -ForegroundColor Yellow
+}
+catch {
+    Write-Host "`nError occurred: $_" -ForegroundColor Red
+    exit 1
+}
